@@ -13,15 +13,15 @@ object TeacherRepository {
 
   class Teachers(tag: Tag) extends Table[Teacher](tag, "teacher") {
     def teacherId = column[Option[Int]]("teacher_id", O.PrimaryKey, O.AutoInc)
-    def education = column[String]("education")
-    def qualification = column[String]("qualification")
-    def experience = column[Int]("experience")
-    def scheduleId = column[Int]("schedule_id")
-    def salary = column[Int]("salary")
-    def position = column[String]("position")
-    def awards = column[String]("awards")
-    def certificationId = column[Int]("certification_id")
-    def attestationId = column[Int]("attestation_id")
+    def education = column[Option[String]]("education")
+    def qualification = column[Option[String]]("qualification")
+    def experience = column[Option[Int]]("experience")
+    def scheduleId = column[Option[Int]]("schedule_id")
+    def salary = column[Option[Int]]("salary")
+    def position = column[Option[String]]("position")
+    def awards = column[Option[String]]("awards")
+    def certificationId = column[Option[Int]]("certification_id")
+    def attestationId = column[Option[Int]]("attestation_id")
 
     def * = (
       teacherId,

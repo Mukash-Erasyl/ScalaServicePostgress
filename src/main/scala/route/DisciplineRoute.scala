@@ -1,18 +1,25 @@
 package route
 
+import akka.actor.ActorRef
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.ExceptionHandler
+import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
+import kafka.server.ConfigAdminManager.log
+import model.Discipline
+import org.apache.kafka.clients.producer.KafkaProducer
 import org.json4s.{DefaultFormats, jackson}
 import repository.DisciplineRepository
-import model.Discipline
+import util.KafkaProducerUtil
 
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 object DisciplineRoutes extends Json4sSupport {
 
   implicit val serialization = jackson.Serialization
   implicit val formats = DefaultFormats
+  implicit val executor: ExecutionContext = scala.concurrent.ExecutionContext.global
+
 
   // Обработчик исключений для получения деталей об ошибке
   implicit val exceptionHandler: ExceptionHandler = ExceptionHandler {
@@ -23,8 +30,7 @@ object DisciplineRoutes extends Json4sSupport {
       }
   }
 
-  val route =
-    handleExceptions(exceptionHandler) {
+  def route(kafkaProducer: KafkaProducer[String, String]): Route =
       pathPrefix("discipline") {
         concat(
           get {
@@ -41,7 +47,22 @@ object DisciplineRoutes extends Json4sSupport {
               },
               post {
                 entity(as[Discipline]) { discipline =>
-                  complete(DisciplineRepository.addDiscipline(discipline))
+                  log.info("Before sending message to Kafka")
+                  val result = for {
+                    _ <- DisciplineRepository.addDiscipline(discipline)
+                    _ <- KafkaProducerUtil.sendMessage("discipline-topic", discipline.toString)
+                  } yield ()
+                  log.info("After sending message to Kafka")
+
+                  onComplete(result) {
+                    case Success(_) =>
+                      log.info(s"Discipline added successfully. Message sent to Kafka: $discipline")
+                      complete("Discipline added successfully")
+                    case Failure(ex) =>
+                      log.error(s"Failed to add discipline: ${ex.getMessage}")
+                      complete(500, s"Failed to add discipline: ${ex.getMessage}")
+                  }
+
                 }
               }
             )
@@ -54,7 +75,12 @@ object DisciplineRoutes extends Json4sSupport {
               },
               put {
                 entity(as[Discipline]) { updatedDiscipline =>
-                  onComplete(DisciplineRepository.updateDiscipline(idAsInt, updatedDiscipline)) {
+                  val result = for {
+                    rowsAffected <- DisciplineRepository.updateDiscipline(idAsInt, updatedDiscipline)
+                    _ <- KafkaProducerUtil.sendMessage("discipline-topic", s"Discipline updated: $updatedDiscipline")
+                  } yield rowsAffected
+
+                  onComplete(result) {
                     case Success(rowsAffected) =>
                       if (rowsAffected > 0) {
                         complete(s"Rows affected: $rowsAffected")
@@ -67,7 +93,12 @@ object DisciplineRoutes extends Json4sSupport {
                 }
               },
               delete {
-                onComplete(DisciplineRepository.deleteDiscipline(idAsInt)) {
+                val result = for {
+                  rowsAffected <- DisciplineRepository.deleteDiscipline(idAsInt)
+                  _ <- KafkaProducerUtil.sendMessage("discipline-topic", s"Discipline deleted with id: $idAsInt")
+                } yield rowsAffected
+
+                onComplete(result) {
                   case Success(rowsAffected) =>
                     if (rowsAffected > 0) {
                       complete(s"Rows affected: $rowsAffected")
@@ -82,5 +113,5 @@ object DisciplineRoutes extends Json4sSupport {
           }
         )
       }
-    }
+
 }

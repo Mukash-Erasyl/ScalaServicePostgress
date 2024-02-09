@@ -13,7 +13,7 @@ object StudentRepository {
 
   class Students(tag: Tag) extends Table[Student](tag, "students") {
     def studentId = column[Option[Int]]("student_id", O.PrimaryKey, O.AutoInc)
-    def name = column[String]("student_name")
+    def name = column[Option[String]]("student_name")
 
     def * = (studentId, name).mapTo[Student]
   }

@@ -11,7 +11,7 @@ object DisciplineRepository {
 
   class Disciplines(tag: Tag) extends Table[Discipline](tag, "discipline") {
     def disciplineId = column[Option[Int]]("discipline_id", O.PrimaryKey, O.AutoInc)
-    def disciplineName = column[String]("discipline_name")
+    def disciplineName = column[Option[String]]("discipline_name")
 
     def * = (disciplineId, disciplineName).mapTo[Discipline]
   }
